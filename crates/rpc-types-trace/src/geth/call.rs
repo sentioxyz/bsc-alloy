@@ -1,6 +1,7 @@
 //! Geth call tracer types.
 
 use crate::parity::LocalizedTransactionTrace;
+use crate::geth::deny_field;
 use alloy_primitives::{Address, Bytes, B256, U256};
 use serde::{Deserialize, Serialize};
 
@@ -43,6 +44,10 @@ pub struct CallFrame {
     /// The type of the call.
     #[serde(rename = "type")]
     pub typ: String,
+
+    // must not have this field, to distinguish with sentio trace
+    #[serde(rename = "startIndex", skip_serializing, deserialize_with = "deny_field")]
+    pub start_index: (),
 }
 
 /// Represents a recorded log that is emitted during a trace call.

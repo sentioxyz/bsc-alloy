@@ -26,6 +26,7 @@ alloy-serde.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+serde_with.workspace = true
 
 [dev-dependencies]
 alloy-primitives = { workspace = true, features = [
