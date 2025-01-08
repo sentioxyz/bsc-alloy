@@ -8,6 +8,9 @@ use alloy_primitives::{Bytes, B256, U256};
 use alloy_rpc_types_eth::{state::StateOverride, BlockOverrides};
 use serde::{de::DeserializeOwned, ser::SerializeMap, Deserialize, Deserializer, Serialize, Serializer};
 use std::{collections::BTreeMap, time::Duration};
+use crate::geth::sentio::SentioTrace;
+use crate::geth::sentio_prestate::SentioPrestateResult;
+use crate::geth::sentio_reth_raw::SentioRethRawTrace;
 // re-exports
 pub use self::{
     call::{CallConfig, CallFrame, CallLogFrame, FlatCallConfig},
@@ -133,6 +136,12 @@ pub enum GethTrace {
     NoopTracer(NoopFrame),
     /// The response for mux tracer
     MuxTracer(MuxFrame),
+    /// The response for sentio tracer
+    SentioTracer(SentioTrace),
+    /// The response for sentio prestate tracer
+    SentioPrestateTracer(SentioPrestateResult),
+    /// Reth raw trace, for debugging
+    SentioRethRawTracer(SentioRethRawTrace),
     /// Any other trace response, such as custom javascript response objects
     JS(serde_json::Value),
 }
@@ -251,6 +260,24 @@ impl From<MuxFrame> for GethTrace {
     }
 }
 
+impl From<SentioTrace> for GethTrace {
+    fn from(value: SentioTrace) -> Self {
+        Self::SentioTracer(value)
+    }
+}
+
+impl From<SentioPrestateResult> for GethTrace {
+    fn from(value: SentioPrestateResult) -> Self {
+        Self::SentioPrestateTracer(value)
+    }
+}
+
+impl From<SentioRethRawTrace> for GethTrace {
+    fn from(value: SentioRethRawTrace) -> Self {
+        Self::SentioRethRawTracer(value)
+    }
+}
+
 /// Available built-in tracers
 ///
 /// See <https://geth.ethereum.org/docs/developers/evm-tracing/built-in-tracers>
@@ -291,6 +318,12 @@ pub enum GethDebugBuiltInTracerType {
     /// The mux tracer is a tracer that can run multiple tracers at once.
     #[serde(rename = "muxTracer")]
     MuxTracer,
+    #[serde(rename = "sentioTracer")]
+    SentioTracer,
+    #[serde(rename = "sentioPrestateTracer")]
+    SentioPrestateTracer,
+    #[serde(rename = "sentioRethRawTracer")]
+    SentioRethRawTracer
 }
 
 /// Available tracers
@@ -363,6 +396,20 @@ impl GethDebugTracerConfig {
 
     /// Returns the [MuxConfig] if it is a mux config.
     pub fn into_mux_config(self) -> Result<MuxConfig, serde_json::Error> {
+        if self.0.is_null() {
+            return Ok(Default::default());
+        }
+        self.from_value()
+    }
+
+    pub fn into_sentio_config(self) -> Result<sentio::SentioTracerConfig, serde_json::Error> {
+        if self.0.is_null() {
+            return Ok(Default::default());
+        }
+        self.from_value()
+    }
+
+    pub fn into_sentio_prestate_config(self) -> Result<sentio_prestate::SentioPrestateTracerConfig, serde_json::Error> {
         if self.0.is_null() {
             return Ok(Default::default());
         }
@@ -714,7 +761,6 @@ fn serialize_string_storage_map_opt<S: Serializer>(
 mod tests {
     use super::*;
     use similar_asserts::assert_eq;
-    use crate::geth::sentio::SentioTrace;
 
     #[test]
     fn test_tracer_config() {
@@ -853,7 +899,6 @@ mod tests {
         assert!(ret.is_ok());
 
         let ret: serde_json::error::Result<CallFrame> = serde_json::from_str(SENTIO_TRACE);
-        println!("{:?}", ret);
         assert!(ret.is_err());
 
         let ret: serde_json::error::Result<DefaultFrame> = serde_json::from_str(SENTIO_TRACE);
